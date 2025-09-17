@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ANSI Paint</title>
+    <style>
+        body {
+            font-family: monospace;
+            margin: 0;
+            padding: 0;
+            background: #111;
+            color: #eee;
+        }
+        .toolbar {
+            padding: 10px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            background: #111;
+        }
+        .grid {
+            display: grid;
+            gap: 1px;
+            justify-content: center;
+            margin: 20px auto;
+            width: max-content;
+        }
+        .cell {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            background: white; /* default is white */
+        }
+        textarea {
+            width: 95%;
+            height: 200px;
+            margin: 20px auto;
+            display: block;
+            background: #000;
+            color: #eee;
+            font-family: monospace;
+        }
+        button, input, select {
+            padding: 6px 12px;
+            font-size: 14px;
+        }
+        input {
+            width: 60px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <label for="color">Color:</label>
+        <select id="color">
+            <option value="30">Black</option>
+            <option value="31">Red</option>
+            <option value="32">Green</option>
+            <option value="33">Yellow</option>
+            <option value="34">Blue</option>
+            <option value="35">Magenta</option>
+            <option value="36">Cyan</option>
+            <option value="37" selected>White</option>
+        </select>
+        <label>Brush Size:</label>
+        <input id="brush" type="number" value="1" min="1" max="10">
+        <label>Width:</label><input id="cols" type="number" value="24" min="1" max="100">
+        <label>Height:</label><input id="rows" type="number" value="18" min="1" max="100">
+        <label for="mirror">Mirror:</label>
+        <input type="checkbox" id="mirror">
+        <button onclick="generateGrid()">Set Size</button>
+        <button onclick="exportANSI()">Export ANSI</button>
+        <button onclick="copyANSI()">Copy</button>
+        <button onclick="resetGrid()">Reset</button>
+    </div>
+    <div class="grid" id="grid"></div>
+    <textarea id="output" readonly></textarea>
+
+    <script>
+        const grid = document.getElementById("grid");
+        const mirrorCheckbox = document.getElementById("mirror");
+        let rows = 18, cols = 24;
+        let currentColor = "37"; // default = white
+        let brushSize = 1;
+        let cells = [];
+        let painting = false;
+
+        document.getElementById("color").addEventListener("change", e => {
+            currentColor = e.target.value;
+        });
+
+        document.getElementById("brush").addEventListener("change", e => {
+            brushSize = parseInt(e.target.value);
+        });
+
+        document.body.addEventListener("mouseup", () => painting = false);
+
+        function generateGrid() {
+            rows = parseInt(document.getElementById("rows").value);
+            cols = parseInt(document.getElementById("cols").value);
+            grid.innerHTML = "";
+            grid.style.gridTemplateColumns = `repeat(${cols}, 20px)`;
+            grid.style.gridTemplateRows = `repeat(${rows}, 20px)`;
+            cells = [];
+
+            for (let r = 0; r < rows; r++) {
+                cells[r] = [];
+                for (let c = 0; c < cols; c++) {
+                    const div = document.createElement("div");
+                    div.classList.add("cell");
+                    div.dataset.color = "37"; // white default
+                    div.addEventListener("mousedown", () => {
+                        painting = true;
+                        paintCellAt(r, c);
+                    });
+                    div.addEventListener("mouseover", () => {
+                        if (painting) paintCellAt(r, c);
+                    });
+                    grid.appendChild(div);
+                    cells[r][c] = div;
+                }
+            }
+        }
+
+        function paintCellAt(row, col) {
+            const start = Math.floor((brushSize - 1) / 2);
+            const end = Math.ceil((brushSize - 1) / 2);
+            for (let r = row - start; r <= row + end; r++) {
+                for (let c = col - start; c <= col + end; c++) {
+                    if (r >= 0 && r < rows && c >= 0 && c < cols) {
+                        cells[r][c].style.background = ansiToColor(currentColor);
+                        cells[r][c].dataset.color = currentColor;
+
+                        // Mirror horizontally if checked
+                        if (mirrorCheckbox.checked) {
+                            const mirroredCol = cols - 1 - c;
+                            if (mirroredCol >= 0 && mirroredCol < cols) {
+                                cells[r][mirroredCol].style.background = ansiToColor(currentColor);
+                                cells[r][mirroredCol].dataset.color = currentColor;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        function ansiToColor(code) {
+            switch(code) {
+                case "30": return "black";
+                case "31": return "red";
+                case "32": return "green";
+                case "33": return "yellow";
+                case "34": return "blue";
+                case "35": return "magenta";
+                case "36": return "cyan";
+                case "37": return "white";
+                default: return "white";
+            }
+        }
+
+        function exportANSI() {
+            let result = "";
+            for (let r = 0; r < rows; r++) {
+                let line = "";
+                let current = null;
+                let buffer = "";
+                for (let c = 0; c < cols; c++) {
+                    let color = cells[r][c].dataset.color;
+                    if (color === current) {
+                        buffer += "█";
+                    } else {
+                        if (buffer.length > 0) {
+                            line += "\\x1b[" + current + "m" + buffer + "\\x1b[0m";
+                        }
+                        buffer = "█";
+                        current = color;
+                    }
+                }
+                if (buffer.length > 0) {
+                    line += "\\x1b[" + current + "m" + buffer + "\\x1b[0m";
+                }
+                result += line + "\\n";
+            }
+            document.getElementById("output").value = result;
+        }
+
+        function copyANSI() {
+            const output = document.getElementById("output");
+            output.select();
+            output.setSelectionRange(0, 99999);
+            navigator.clipboard.writeText(output.value).then(() => {
+                alert("ANSI copied!");
+            });
+        }
+
+        function resetGrid() {
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    cells[r][c].style.background = "white";
+                    cells[r][c].dataset.color = "37";
+                }
+            }
+            document.getElementById("output").value = "";
+        }
+
+        generateGrid();
+    </script>
+</body>
+</html>
