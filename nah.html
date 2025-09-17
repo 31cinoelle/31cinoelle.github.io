@@ -172,19 +172,20 @@
                         buffer += "█";
                     } else {
                         if (buffer.length > 0) {
-                            line += "\\x1b[" + current + "m" + buffer + "\\x1b[0m";
+                            line += `\x1b[${current}m${buffer}\x1b[0m`;
                         }
                         buffer = "█";
                         current = color;
                     }
                 }
                 if (buffer.length > 0) {
-                    line += "\\x1b[" + current + "m" + buffer + "\\x1b[0m";
+                    line += `\x1b[${current}m${buffer}\x1b[0m`;
                 }
-                result += line + "\\n";
+                result += line + "\n";
             }
             document.getElementById("output").value = result;
         }
+
 
         function copyANSI() {
             const output = document.getElementById("output");
